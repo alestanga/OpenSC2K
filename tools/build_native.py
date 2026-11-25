@@ -4,8 +4,8 @@
 With no options, build the library for this computer. Use --package to build
 the library that a desktop package needs on this platform: a universal library
 on macOS, and the library of this architecture (x86_64 or arm64) on Windows
-and Linux. Use --ios to build the five Godot extensions for an iPad or iPhone;
-the standalone desktop binary and FluidSynth are not part of that build.
+and Linux. Use --ios to build the five Godot extensions and FluidSynth for an
+iPad or iPhone; the standalone desktop binary is not part of that build.
 
 The audio library loads FluidSynth at run time. This also builds the FluidSynth
 shared library (tools/build_fluidsynth.py, which needs CMake). Without it, no
@@ -183,7 +183,7 @@ def build_ios(quiet=False, simulator=False):
             built = TARGET / triple / 'release' / name
             target = ROOT / 'game/bin' / f'opensc2k_{module}' / folder / name
             targets.append(_install(built, target))
-    return targets
+    return targets + build_fluidsynth.build_ios(quiet=quiet, simulator=simulator)
 
 
 def test(quiet=False):

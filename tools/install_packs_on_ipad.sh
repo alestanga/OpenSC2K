@@ -16,9 +16,19 @@ if [ ! -f "$SOURCE/graphics/pack.json" ]; then
 fi
 
 export DEVELOPER_DIR
-exec xcrun devicectl device copy to \
+xcrun devicectl device copy to \
 	--device "$DEVICE" \
 	--source "$SOURCE" \
 	--destination Documents/packs \
 	--domain-type appDataContainer \
 	--domain-identifier net.22b5.opensc2k
+
+SOUNDFONT="$SOURCE/soundfont/FluidR3Mono_GM.sf3"
+if [ -f "$SOUNDFONT" ]; then
+	xcrun devicectl device copy to \
+		--device "$DEVICE" \
+		--source "$SOUNDFONT" \
+		--destination Documents/FluidR3Mono_GM.sf3 \
+		--domain-type appDataContainer \
+		--domain-identifier net.22b5.opensc2k
+fi

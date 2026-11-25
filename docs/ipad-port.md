@@ -82,6 +82,26 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   "$GODOT" --headless --path game --export-debug "iPad" ../local/releases/OpenSC2K-iPad
 ```
 
+## MIDI music on iPad
+
+The iOS build now includes FluidSynth and an MIT-licensed GM SoundFont:
+
+```sh
+python3 tools/build_native.py --ios          # also builds FluidSynth for iOS
+python3 tools/download_ipad_soundfont.py     # FluidR3Mono_GM.sf3, SHA-256 checked
+tools/install_packs_on_ipad.sh               # copies packs and the SoundFont
+```
+
+`tools/build_fluidsynth.py` cross-compiles the pinned upstream sources with a
+CMake iOS toolchain. The Godot exporter converts the resulting dylib into a
+signed `.framework` beside the audio extension, and the runtime loader looks
+for it there. `SoundFontCatalog.system_path()` uses the bundled FluidR3 Mono
+file in the app's Documents folder, since iOS has no system GM sound set.
+
+FluidSynth is LGPL-2.1-or-later. On desktop it is a replaceable dylib; on iOS
+it is an embedded framework, so replacing it requires a new build. Review that
+difference before a release.
+
 ## Simulator path (no device registration needed)
 
 The simulator uses the Compatibility renderer and its own dylibs:
@@ -144,6 +164,8 @@ Verified on device:
 - The signed Xcode project exports, installs and launches on the iPad Air.
 - The main menu shows with live buttons, the original city background, no Exit
   button, and no Import Assets prompt once packs are in `Documents/packs`.
+- The FluidSynth framework is embedded and signed; the SoundFont is in
+  `Documents/FluidR3Mono_GM.sf3`. Confirm the title music by ear on the device.
 - Install over the existing app with `devicectl device install app` instead of
   uninstalling first; uninstalling clears the developer-trust record and makes
   iOS ask for approval again.
@@ -152,10 +174,7 @@ Not yet done (ordered by priority):
 
 1. A proper iOS asset import flow. `FileDialog.ACCESS_FILESYSTEM` is
    desktop-only; for now packs are copied in with `install_packs_on_ipad.sh`.
-3. Music: the iOS build has no FluidSynth library and no SoundFont. The audio
-   extension loads but reports FluidSynth unavailable. Building FluidSynth for
-   iOS also needs a decision on the LGPL replaceability requirement.
-4. UI: fixed 1280x800 whole-pixel scaling, dense 32 px toolbar buttons, a
+2. UI: fixed 1280x800 whole-pixel scaling, dense 32 px toolbar buttons, a
    custom hidden mouse cursor, and an Exit button need iPad-specific rules.
    Safe-area insets are not applied yet.
 5. Input: Godot's iOS backend reports touch events and emulates mouse events

@@ -28,10 +28,10 @@ pub const LOG_DEBUG: c_int = 4;
 /// Overrides the library search, for development and tests.
 pub const LIBRARY_ENVIRONMENT_VARIABLE: &str = "OPENSC2K_FLUIDSYNTH";
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 const LIBRARY_NAMES: &[&str] = &["libfluidsynth.3.dylib", "libfluidsynth.dylib"];
 
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
 const LIBRARY_NAMES: &[&str] = &["libfluidsynth.so.3", "libfluidsynth.so"];
 
 #[cfg(windows)]
@@ -160,8 +160,17 @@ pub fn library_candidates(override_path: Option<PathBuf>, own_folder: Option<Pat
 
     let mut candidates = Vec::new();
 
-    if let Some(folder) = own_folder {
+    if let Some(folder) = &own_folder {
         candidates.extend(LIBRARY_NAMES.iter().map(|name| folder.join(name)));
+    }
+
+    // The exporter converts a dylib dependency into a framework next to the
+    // audio extension's own framework in the app's Frameworks folder.
+    #[cfg(target_os = "ios")]
+    if let Some(folder) = &own_folder {
+        if let Some(parent) = folder.parent() {
+            candidates.push(parent.join("libfluidsynth.3.framework/libfluidsynth.3"));
+        }
     }
 
     candidates.extend(LIBRARY_NAMES.iter().map(PathBuf::from));

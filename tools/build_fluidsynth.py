@@ -69,11 +69,16 @@ SOURCES = {
 # candidate names in native/core/audio/src/fluidsynth/library.rs
 LIBRARY_NAMES = {
     'macos': ('libfluidsynth.3.dylib',),
+    'ios': ('libfluidsynth.3.dylib',),
+    'ios-simulator': ('libfluidsynth.3.dylib',),
     'linux-x86_64': ('libfluidsynth.so.3',),
     'linux-arm64': ('libfluidsynth.so.3',),
     'windows-x86_64': ('libfluidsynth-3.dll',),
     'windows-arm64': ('libfluidsynth-3.dll',),
 }
+
+# the iOS SDK behind each build folder
+IOS_SDKS = {'ios': 'iphoneos', 'ios-simulator': 'iphonesimulator'}
 
 # the static codec libraries inside libsndfile, in link order
 CODEC_LIBRARIES = ('FLAC', 'opus', 'vorbisenc', 'vorbis', 'ogg')
@@ -180,14 +185,16 @@ def extract(archive, destination):
     return folder
 
 
-def cmake(source, build, prefix, options, architecture, quiet):
+def cmake(source, build, prefix, options, architecture, quiet, toolchain=None):
     # Visual Studio finds its compiler without a developer prompt; Ninja does not
     generator = ['-G', 'Ninja'] if shutil.which('ninja') and sys.platform != 'win32' else []
     platform_options = []
-    if sys.platform == 'win32':
+    if toolchain is not None:
+        platform_options = [f'-DCMAKE_TOOLCHAIN_FILE={toolchain}']
+    elif sys.platform == 'win32':
         # the Visual Studio platform of this folder, not of the build tools
         platform_options = ['-A', WINDOWS_PLATFORMS[host_folder()]]
-    if sys.platform == 'darwin':
+    elif sys.platform == 'darwin':
         platform_options = [f'-DCMAKE_OSX_ARCHITECTURES={architecture}',
                             f'-DCMAKE_OSX_DEPLOYMENT_TARGET={MACOS_DEPLOYMENT_TARGET}']
     run(['cmake', '-S', str(source), '-B', str(build), *generator, *COMMON_OPTIONS, *platform_options,
@@ -205,24 +212,25 @@ def run(command, quiet):
         raise subprocess.CalledProcessError(result.returncode, command)
 
 
-def build_from_source(architecture, quiet):
+def build_from_source(architecture, quiet, folder=None, toolchain=None):
     """Build FluidSynth for one architecture, and return the shared library."""
     if shutil.which('cmake') is None:
         raise OSError('cmake is required to build FluidSynth (https://cmake.org)')
-    work = WORK / f'{host_folder()}-{architecture}'
+    folder = folder or host_folder()
+    work = WORK / f'{folder}-{architecture}'
     prefix = work / 'prefix'
     # a clean build: an old CMake cache could keep settings from another recipe
     shutil.rmtree(prefix, ignore_errors=True)
     shutil.rmtree(work / 'build', ignore_errors=True)
     for name in ('ogg', 'vorbis', 'flac', 'opus', 'sndfile'):
         source = extract(download(*SOURCES[name]), work / 'source' / name)
-        cmake(source, work / 'build' / name, prefix, DEPENDENCY_OPTIONS[name], architecture, quiet)
+        cmake(source, work / 'build' / name, prefix, DEPENDENCY_OPTIONS[name], architecture, quiet, toolchain)
 
     source = extract(download(*SOURCES['fluidsynth']), work / 'source' / 'fluidsynth')
-    for name, folder in (('gcem', 'gcem'), ('signalsmith', 'signalsmith-audio-basics')):
+    for name, subfolder in (('gcem', 'gcem'), ('signalsmith', 'signalsmith-audio-basics')):
         submodule = extract(download(*SOURCES[name]), work / 'source' / name)
-        shutil.rmtree(source / folder, ignore_errors=True)
-        shutil.copytree(submodule, source / folder)
+        shutil.rmtree(source / subfolder, ignore_errors=True)
+        shutil.copytree(submodule, source / subfolder)
 
     # CMake must not download anything: every source is pinned above
     options = [*FLUIDSYNTH_OPTIONS, '-DFETCHCONTENT_FULLY_DISCONNECTED=ON']
@@ -241,10 +249,10 @@ def build_from_source(architecture, quiet):
     else:
         # the Apple and Microsoft linkers search static libraries in any order
         options.append(f'-DCMAKE_SHARED_LINKER_FLAGS={codecs}')
-    cmake(source, work / 'build' / 'fluidsynth', prefix, options, architecture, quiet)
-    library = LIBRARY_NAMES[host_folder()][0]
-    folder = 'bin' if sys.platform == 'win32' else 'lib'
-    return (prefix / folder / library).resolve()
+    cmake(source, work / 'build' / 'fluidsynth', prefix, options, architecture, quiet, toolchain)
+    library = LIBRARY_NAMES[folder][0]
+    install_lib = 'bin' if sys.platform == 'win32' else 'lib'
+    return (prefix / install_lib / library).resolve()
 
 
 def check_dependencies(library):
@@ -315,6 +323,53 @@ def pe_imports(path):
         names.append(data[start:data.index(b'\0', start)].decode('ascii'))
         descriptor += 20
     return names
+
+
+def ios_toolchain(sdk):
+    """Write a CMake toolchain file for one Apple embedded SDK."""
+    def xcrun(*arguments):
+        return subprocess.check_output(['xcrun', '--sdk', sdk, *arguments], text=True).strip()
+
+    path = WORK / f'toolchain-{sdk}.cmake'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('\n'.join([
+        'set(CMAKE_SYSTEM_NAME iOS)',
+        f'set(CMAKE_OSX_SYSROOT "{xcrun("--show-sdk-path")}")',
+        'set(CMAKE_OSX_ARCHITECTURES arm64)',
+        'set(CMAKE_OSX_DEPLOYMENT_TARGET 17.0)',
+        f'set(CMAKE_C_COMPILER "{xcrun("--find", "clang")}")',
+        f'set(CMAKE_CXX_COMPILER "{xcrun("--find", "clang++")}")',
+        # the dependencies install into CMAKE_PREFIX_PATH, not into the SDK
+        'set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)',
+        'set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)',
+        'set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE NEVER)',
+        'set(CMAKE_MACOSX_BUNDLE OFF)',
+        '',
+    ]))
+    return path
+
+
+def build_ios(quiet=False, simulator=False, device=True):
+    """Build FluidSynth as a signed dylib for iOS devices and optionally the simulator."""
+    folders = []
+    if device:
+        folders.append('ios')
+    if simulator:
+        folders.append('ios-simulator')
+
+    targets = []
+
+    for folder in folders:
+        sdk = IOS_SDKS[folder]
+        built = build_from_source('arm64', quiet, folder=folder, toolchain=ios_toolchain(sdk))
+        name = LIBRARY_NAMES[folder][0]
+        run(['install_name_tool', '-id', f'@rpath/{name}', str(built)], quiet)
+        # install_name_tool removes the signature; iOS requires one on embedded dylibs
+        run(['codesign', '--force', '--sign', '-', str(built)], quiet)
+        check_dependencies(built)
+        targets.append(install(built, output_folder(folder) / name))
+
+    return targets
 
 
 def install_built(quiet):
