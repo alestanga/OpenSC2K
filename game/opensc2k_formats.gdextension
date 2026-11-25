@@ -8,6 +8,10 @@ reloadable = false
 
 macos.debug = "res://bin/opensc2k_formats/macos/libopensc2k_formats.dylib"
 macos.release = "res://bin/opensc2k_formats/macos/libopensc2k_formats.dylib"
+ios.debug = "res://bin/opensc2k_formats/ios/libopensc2k_formats.dylib"
+ios.release = "res://bin/opensc2k_formats/ios/libopensc2k_formats.dylib"
+ios.debug.simulator = "res://bin/opensc2k_formats/ios-simulator/libopensc2k_formats.dylib"
+ios.release.simulator = "res://bin/opensc2k_formats/ios-simulator/libopensc2k_formats.dylib"
 linux.debug.x86_64 = "res://bin/opensc2k_formats/linux-x86_64/libopensc2k_formats.so"
 linux.release.x86_64 = "res://bin/opensc2k_formats/linux-x86_64/libopensc2k_formats.so"
 linux.debug.arm64 = "res://bin/opensc2k_formats/linux-arm64/libopensc2k_formats.so"

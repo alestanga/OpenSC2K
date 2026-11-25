@@ -20,6 +20,9 @@ ghidra/
 # Local writable reference VM
 /local/
 
+# Copyrighted original media bundled into a local iPad prototype export
+/game/bundled_packs/
+
 # Local example packs extracted from copyrighted original media
 /ext/graphics/
 /ext/sound/

@@ -8,7 +8,14 @@ var files: Dictionary = {}
 
 
 static func default_folder(kind: String) -> String:
-	return AppPaths.path("packs").path_join(kind)
+	var folder := AppPaths.path("packs").path_join(kind)
+
+	# iOS has no mounted game disc and no usable filesystem picker for a game
+	# folder. A prototype build carries the imported packs inside the app.
+	if OS.has_feature("ios") and not FileAccess.file_exists(folder.path_join("pack.json")):
+		return "res://bundled_packs/" + kind
+
+	return folder
 
 
 static func load_folder(folder: String, kind: String) -> MediaPack:

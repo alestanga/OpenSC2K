@@ -8,6 +8,10 @@ reloadable = false
 
 macos.debug = "res://bin/opensc2k_scripting/macos/libopensc2k_scripting.dylib"
 macos.release = "res://bin/opensc2k_scripting/macos/libopensc2k_scripting.dylib"
+ios.debug = "res://bin/opensc2k_scripting/ios/libopensc2k_scripting.dylib"
+ios.release = "res://bin/opensc2k_scripting/ios/libopensc2k_scripting.dylib"
+ios.debug.simulator = "res://bin/opensc2k_scripting/ios-simulator/libopensc2k_scripting.dylib"
+ios.release.simulator = "res://bin/opensc2k_scripting/ios-simulator/libopensc2k_scripting.dylib"
 linux.debug.x86_64 = "res://bin/opensc2k_scripting/linux-x86_64/libopensc2k_scripting.so"
 linux.release.x86_64 = "res://bin/opensc2k_scripting/linux-x86_64/libopensc2k_scripting.so"
 linux.debug.arm64 = "res://bin/opensc2k_scripting/linux-arm64/libopensc2k_scripting.so"

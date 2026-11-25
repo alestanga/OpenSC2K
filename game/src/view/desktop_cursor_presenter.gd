@@ -57,6 +57,10 @@ func set_graphics(value: DesktopGraphics) -> void:
 
 
 func present(app: String, group: int, point: Vector2, shape: int) -> void:
+	# iPadOS draws its own pointer. Hiding it would strand a Magic Keyboard user.
+	if OS.has_feature("ios"):
+		return
+
 	var record := graphics.cursor(app, group) if graphics != null else null
 
 	if record == null:

@@ -8,6 +8,10 @@ reloadable = false
 
 macos.debug = "res://bin/opensc2k_audio/macos/libopensc2k_audio.dylib"
 macos.release = "res://bin/opensc2k_audio/macos/libopensc2k_audio.dylib"
+ios.debug = "res://bin/opensc2k_audio/ios/libopensc2k_audio.dylib"
+ios.release = "res://bin/opensc2k_audio/ios/libopensc2k_audio.dylib"
+ios.debug.simulator = "res://bin/opensc2k_audio/ios-simulator/libopensc2k_audio.dylib"
+ios.release.simulator = "res://bin/opensc2k_audio/ios-simulator/libopensc2k_audio.dylib"
 linux.debug.x86_64 = "res://bin/opensc2k_audio/linux-x86_64/libopensc2k_audio.so"
 linux.release.x86_64 = "res://bin/opensc2k_audio/linux-x86_64/libopensc2k_audio.so"
 linux.debug.arm64 = "res://bin/opensc2k_audio/linux-arm64/libopensc2k_audio.so"

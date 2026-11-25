@@ -4,7 +4,8 @@
 With no options, build the library for this computer. Use --package to build
 the library that a desktop package needs on this platform: a universal library
 on macOS, and the library of this architecture (x86_64 or arm64) on Windows
-and Linux.
+and Linux. Use --ios to build the five Godot extensions for an iPad or iPhone;
+the standalone desktop binary and FluidSynth are not part of that build.
 
 The audio library loads FluidSynth at run time. This also builds the FluidSynth
 shared library (tools/build_fluidsynth.py, which needs CMake). Without it, no
@@ -26,6 +27,11 @@ WORKSPACE = ROOT / 'native'
 TARGET = WORKSPACE / 'target'
 MODULES = ('simulation', 'rendering', 'formats', 'audio', 'scripting')
 MACOS_TARGETS = ('aarch64-apple-darwin', 'x86_64-apple-darwin')
+# iOS extensions are loaded by Godot as dylibs. The Apple embedded exporter turns
+# them into signed frameworks when it creates the Xcode project.
+IOS_TARGET = 'aarch64-apple-ios'
+IOS_SIMULATOR_TARGET = 'aarch64-apple-ios-sim'
+IOS_PACKAGES = tuple(f'opensc2k_{module}' for module in MODULES)
 # the Windows and Linux folders that desktop packages include, and their Rust targets.
 # An explicit target stops an emulated x86_64 toolchain from building the wrong library
 PACKAGE_TARGETS = {
@@ -64,8 +70,49 @@ def _cargo(arguments, quiet):
     subprocess.run(command, cwd=WORKSPACE, check=True)
 
 
+def _cargo_packages(arguments, packages, quiet, environment=None):
+    """Build named packages instead of the whole workspace (the app crate is desktop-only)."""
+    command = ['cargo', 'build', *arguments]
+    for package in packages:
+        command.extend(['-p', package])
+    if quiet:
+        command.append('--quiet')
+    subprocess.run(command, cwd=WORKSPACE, check=True, env=environment)
+
+
 def _add_targets(triples):
     subprocess.run(['rustup', 'target', 'add', *triples], cwd=WORKSPACE, check=True)
+
+
+def _apple_sdk_environment(triple, sdk):
+    """Point the cc crate at the iOS SDK for vendored C code (QuickJS)."""
+    def xcrun(*arguments):
+        return subprocess.check_output(['xcrun', '--sdk', sdk, *arguments], text=True).strip()
+
+    environment = dict(os.environ)
+    # The cc crate looks up these variables with a lowercase target prefix.
+    prefix = triple.replace('-', '_')
+    version_flag = '-mios-simulator-version-min=17.0' if sdk == 'iphonesimulator' else '-miphoneos-version-min=17.0'
+    environment[f'CC_{prefix}'] = xcrun('--find', 'clang')
+    # A larger probe size keeps QuickJS from calling ___chkstk_darwin, which
+    # would otherwise need the target-specific compiler-rt archive.
+    environment[f'CFLAGS_{prefix}'] = f'-isysroot {xcrun("--show-sdk-path")} {version_flag} -mstack-probe-size=65536'
+
+    flags = []
+
+    if sdk == 'iphoneos':
+        # The device objects still call ___chkstk_darwin. It lives in
+        # compiler-rt, which Rust does not link for iOS.
+        resource_dir = subprocess.check_output(['xcrun', '--sdk', sdk, 'clang', '-print-resource-dir'], text=True).strip()
+        runtime = Path(resource_dir) / 'lib' / 'darwin'
+        flags.extend(['-C', f'link-arg=-L{runtime}', '-C', 'link-arg=-lclang_rt.ios'])
+    else:
+        # Xcode 27's linker rejects a simulator dylib whose LINKEDIT string
+        # pool is only 4-byte aligned; Rust's debuginfo stripping causes it.
+        flags.extend(['-C', 'strip=none'])
+
+    environment[f'CARGO_TARGET_{prefix.upper()}_RUSTFLAGS'] = ' '.join(flags)
+    return environment
 
 
 def _install(built, target):
@@ -116,6 +163,29 @@ def build_package(quiet=False):
     return targets + build_fluidsynth.build(quiet=quiet)
 
 
+def build_ios(quiet=False, simulator=False):
+    """Build the five Godot extensions for iOS. FluidSynth is deliberately absent:
+    the audio extension reports it as unavailable and the rest of the game runs."""
+    if sys.platform != 'darwin':
+        raise OSError('iOS libraries must be built on macOS with Xcode installed')
+    triples = [IOS_TARGET]
+    if simulator:
+        triples.append(IOS_SIMULATOR_TARGET)
+    _add_targets(triples)
+    targets = []
+    for triple in triples:
+        sdk = 'iphonesimulator' if triple == IOS_SIMULATOR_TARGET else 'iphoneos'
+        folder = 'ios-simulator' if triple == IOS_SIMULATOR_TARGET else 'ios'
+        _cargo_packages(['--release', f'--target={triple}'], IOS_PACKAGES, quiet,
+                        _apple_sdk_environment(triple, sdk))
+        for module in MODULES:
+            name = f'libopensc2k_{module}.dylib'
+            built = TARGET / triple / 'release' / name
+            target = ROOT / 'game/bin' / f'opensc2k_{module}' / folder / name
+            targets.append(_install(built, target))
+    return targets
+
+
 def test(quiet=False):
     """Run unit tests for each native library. The audio tests use the built FluidSynth."""
     environment = dict(os.environ)
@@ -136,8 +206,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--debug', action='store_true', help='Build without optimizations')
     parser.add_argument('--package', action='store_true', help='Build the library of a desktop package')
+    parser.add_argument('--ios', action='store_true', help='Build the Godot extensions for iOS devices')
+    parser.add_argument('--ios-simulator', action='store_true', help='Also build the iOS simulator extensions')
     args = parser.parse_args()
-    targets = build_package() if args.package else build('debug' if args.debug else 'release')
+    if args.ios:
+        targets = build_ios(simulator=args.ios_simulator)
+    else:
+        targets = build_package() if args.package else build('debug' if args.debug else 'release')
     for target in targets:
         print(f'Native library: {target.relative_to(ROOT)}')
     return 0

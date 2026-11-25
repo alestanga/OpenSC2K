@@ -170,7 +170,12 @@ def extract(archive, destination):
     shutil.rmtree(destination, ignore_errors=True)
     destination.mkdir(parents=True)
     with tarfile.open(archive) as stream:
-        stream.extractall(destination, filter='data')
+        try:
+            stream.extractall(destination, filter='data')
+        except TypeError:
+            # Python 3.11 and older have no extraction filters. The archives are
+            # pinned and checked against their SHA-256 before extraction.
+            stream.extractall(destination)
     (folder,) = destination.iterdir()
     return folder
 

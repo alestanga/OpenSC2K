@@ -49,6 +49,11 @@ func _ready() -> void:
 	for index in BUTTON_LABELS.size():
 		var button_name: String = BUTTON_LABELS[index].replace(" ", "")
 		var button: Button = content.get_node(button_name)
+
+		# An iOS app stays in memory; there is no quit action for it to run.
+		if OS.has_feature("ios") and index == 7:
+			button.visible = false
+
 		button.pressed.connect(button_clicked.emit)
 		button.pressed.connect(_emit_action.bind(index))
 
