@@ -44,6 +44,9 @@ fn join(folder: &str, name: &str) -> String {
 pub fn sound_set_paths(os_name: &str, executable_folder: &str, windows_folder: &str) -> Vec<String> {
     match os_name {
         "macOS" => vec![MACOS_SOUND_SET.to_string()],
+        // iPadOS has no system GM set. The caller passes the writable app
+        // folder, where the prototype installs the MIT FluidR3 Mono font.
+        "iOS" => vec![join(executable_folder, BUNDLED_SOUND_SET)],
         "Windows" => {
             let folder = if windows_folder.is_empty() {
                 WINDOWS_FOLDER
@@ -130,6 +133,7 @@ mod tests {
         assert!(is_bundled(&linux[5]) && !is_bundled(&linux[0]));
         assert_eq!(sound_set_paths("Windows", "", ""), ["C:/Windows/System32/drivers/gm.dls"]);
         assert_eq!(sound_set_paths("Windows", "", "D:/WIN"), ["D:/WIN/System32/drivers/gm.dls"]);
+        assert_eq!(sound_set_paths("iOS", "/app/Documents", ""), ["/app/Documents/FluidR3Mono_GM.sf3"]);
         assert!(sound_set_paths("Web", "", "").is_empty());
     }
 

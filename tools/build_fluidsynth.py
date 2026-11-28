@@ -364,8 +364,9 @@ def build_ios(quiet=False, simulator=False, device=True):
         built = build_from_source('arm64', quiet, folder=folder, toolchain=ios_toolchain(sdk))
         name = LIBRARY_NAMES[folder][0]
         run(['install_name_tool', '-id', f'@rpath/{name}', str(built)], quiet)
-        # install_name_tool removes the signature; iOS requires one on embedded dylibs
-        run(['codesign', '--force', '--sign', '-', str(built)], quiet)
+        # Leave the dylib unsigned after the install-name change. The Godot
+        # exporter signs the converted framework with the app's identity; an
+        # ad-hoc signature here gives it a mismatched signing identifier.
         check_dependencies(built)
         targets.append(install(built, output_folder(folder) / name))
 

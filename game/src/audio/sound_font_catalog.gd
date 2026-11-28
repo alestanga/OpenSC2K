@@ -29,14 +29,14 @@ const BUNDLED_SOUND_SET := "FluidR3Mono_GM.sf3"
 
 ## The sound set of this operating system, or an empty string when it has none.
 static func system_path() -> String:
-	# iOS has no system GM set. The MIT FluidR3 Mono file is copied into the
-	# app's Documents folder by tools/install_packs_on_ipad.sh.
+	# iPadOS has no system GM set. The native catalog looks for the bundled
+	# FluidR3 Mono file in the writable app folder.
+	var folder := OS.get_executable_path().get_base_dir()
+
 	if OS.has_feature("ios"):
-		var bundled := AppPaths.path(BUNDLED_SOUND_SET)
+		folder = AppPaths.root()
 
-		return bundled if FileAccess.file_exists(bundled) else ""
-
-	return NativeSoundFonts.first_existing(sound_set_paths(OS.get_name(), OS.get_executable_path().get_base_dir()))
+	return NativeSoundFonts.first_existing(sound_set_paths(OS.get_name(), folder))
 
 
 ## The sound sets to try on an operating system, in order.
